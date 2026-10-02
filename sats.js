@@ -93,7 +93,8 @@ function drawAccount() {
 function drawBalances() {
   if (!ledger) { $('#balances').textContent = 'ledger…'; return; }
   const me = account ? fmt(T.balance(ledger, account.did)) : '—', bot = BOT_DID ? fmt(T.balance(ledger, BOT_DID)) : '—';
-  $('#balances').innerHTML = `you <b style="color:var(--gold)">${me}</b> · bot <b style="color:var(--gold)">${bot}</b> sats`;
+  const q = S.unpublished(pending).length;
+  $('#balances').innerHTML = `you <b style="color:var(--gold)">${me}</b> · bot <b style="color:var(--gold)">${bot}</b> sats` + (q ? ` <span title="hands signed here that no relay has taken yet; re-sent until one does">· ⟳ ${q}</span>` : '');
 }
 async function publishRequest(sign, req) {
   const ev = await sign({ kind: T.REQUEST_KIND, tags: T.requestTags({ ledgerHash: ledger.hash, ...req }), content: '' });
@@ -208,19 +209,31 @@ function botAction(L, cache) {
   return ladderDecide(h, BOT, L, T_.table, 0, Math.random);
 }
 
-// ---- settlement: the loser signs a transfer to the winner; applied locally at once, by the operator on its next scan
+// ---- settlement: the loser signs a transfer to the winner; applied locally the moment it is signed (milliseconds), the
+// next hand deals at once; publishing to the relays runs apart and is retried until one relay has taken it, so a tab
+// closed mid-publish loses nothing: the signed event is kept with the pending hand and re-sent on load and every minute
 async function settle(st) {
   const s = S.settlement(h, { hero: account.did, bot: BOT_DID }, HERO, st);
   if (!s) { caption('split: nothing moves'); return; }
   const sign = s.from === account.did ? account.sign : (u) => events.signEvent(BOT_KEY, u);
-  caption(s.from === account.did ? '⚡ signing the transfer to the bot…' : '⚡ the bot signs its transfer to you…');
-  try {
-    const { ev, n } = await publishRequest(sign, { op: 'transfer', amount: s.amount, to: s.to });
-    const r = T.parseRequest(ev, { verify: verifyNostrEvent, ledgerHash: ledger.hash });
-    pending.push({ id: r.id, from: r.account, to: r.to, amount: r.amount, created_at: r.created_at }); reconcile(); sLedger();
-    caption(`⚡ ${s.to === account.did ? '+' : '−'}${fmt(s.amount)} sats signed to ${n} relay(s) · you ${fmt(T.balance(ledger, account.did))} · bot ${fmt(T.balance(ledger, BOT_DID))}`);
-  } catch (e) { caption('⚠ the transfer was not published: ' + esc(e.message) + ' — this hand is not on the ledger'); }
+  let ev; try { ev = await sign({ kind: T.REQUEST_KIND, tags: T.requestTags({ ledgerHash: ledger.hash, ...{ op: 'transfer', amount: s.amount, to: s.to } }), content: '' }); }
+  catch (e) { caption('⚠ the transfer was not signed: ' + esc(e.message) + ' — this hand is not on the ledger'); return; }
+  const r = T.parseRequest(ev, { verify: verifyNostrEvent, ledgerHash: ledger.hash });
+  pending.push({ id: r.id, from: r.account, to: r.to, amount: r.amount, created_at: r.created_at, published: false, event: ev }); reconcile(); sLedger();
+  caption(`⚡ ${s.to === account.did ? '+' : '−'}${fmt(s.amount)} sats signed · you ${fmt(T.balance(ledger, account.did))} · bot ${fmt(T.balance(ledger, BOT_DID))}`);
+  publishPending();
 }
+let publishing = false;
+async function publishPending() {
+  if (publishing) return; publishing = true;
+  try {
+    // every unpublished hand at once, each relay on its own: the first OK marks a hand published; a slow relay holds
+    // nothing else up (a backlog of hands clears in one relay round, not one per hand)
+    const send = (p) => Promise.all(RELAYS.map((url) => relay.publish({ relays: [url], event: p.event }).then((res) => { if (res[url] === 'ok' && !p.published) { p.published = true; savePending(); drawBalances(); } }).catch(() => {})));
+    await Promise.all(S.unpublished(pending).map(send));
+  } finally { publishing = false; }
+}
+setInterval(publishPending, 60000);
 
 async function waitToSit() {
   for (;;) {
@@ -290,5 +303,6 @@ sndBtn.addEventListener('click', () => { soundOn = !soundOn; LS.set('lp.sound', 
 { const k = LS.get('sats:key'); if (k) await signIn(k); else if (LS.get('sats:nip07') && window.nostr) await signIn(null); }
 drawAccount(); drawBalances();
 await refreshLedger(); setInterval(() => refreshLedger().catch(() => {}), 45000);
+publishPending();
 await loadStrategy();
 (async () => { for (;;) await playHand(); })();

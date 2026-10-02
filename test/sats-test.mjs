@@ -57,6 +57,10 @@ const hb = P.newHand({ seats: [{ name: 'You', stack: hi.buyin }, { name: 'Bot', 
 const sb = S.settlement(hb, { hero, bot }, 0, hi);
 t('at 100/200 the folded small blind owes 100 sat, and the seat needs 20,000 to sit', sb && sb.amount === 100 && sb.from === hero && !S.canSit(T, L, hero, bot, hi).hero && S.canSit(T, L, hero, bot, hi).bot);
 
+// a hand is applied the moment it is signed; publishing is apart, retried until one relay has it
+const q = [{ id: 'q1', from: hero, to: bot, amount: 10, created_at: 3, published: false, event: ev }, { id: 'q2', from: hero, to: bot, amount: 10, created_at: 3, published: true, event: ev }, { id: 'q3', from: hero, to: bot, amount: 10, created_at: 3 }];
+t('a pending hand keeps its published flag through reconcile; the unpublished ones are the retry queue', S.unpublished(q).map((p) => p.id).join() === 'q1' && S.reconcile(T, L, q).pending.filter((p) => p.published).length === 1 && S.reconcile(T, L, q).pending.length === 3);
+
 // links
 const lk = S.parseLink('#ledger=' + L.hash + '&bot=' + botKey.toUpperCase(), '');
 t('the fragment carries the ledger hash and the bot key; a bad value is null', lk.ledger === L.hash && lk.bot === botKey && S.parseLink('#bot=xyz', '?ledger=' + L.hash).bot === null && S.parseLink('', '?ledger=' + L.hash).ledger === L.hash);
