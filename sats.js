@@ -10,6 +10,7 @@ const TELLER = 'https://cdn.jsdelivr.net/gh/solidpayorg/teller@7c00ceac4dc37e052
 const PLAY = 'https://cdn.jsdelivr.net/gh/libre-poker/play@3f226bb297293cebba6e201cdcc493f4634eec95';
 const STRATEGY = 'https://librepoker.org/play/strategy-hulimit.json?v=18'; // 27 MB, too big for the CDN; the same file the main table plays
 const REEF = 'https://bitcoin-blake.github.io/reef/';
+const EXPLORER = 'https://mempool.guide/testnet4';
 const RELAYS = ['wss://nos.lol', 'wss://relay.damus.io', 'wss://relay.primal.net', 'wss://nostr.oxtr.dev'];
 const $ = (s) => document.querySelector(s);
 const LS = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} }, del: (k) => { try { localStorage.removeItem(k); } catch {} } };
@@ -89,6 +90,7 @@ function drawAccount() {
   const d = T.depositAddress(deps, { operatorPoint: ledger.genesis.operator, ledgerHash: ledger.hash, account: account.did });
   $('#aaddr').textContent = d.address;
   $('#apay').href = REEF + '?pay=' + encodeURIComponent(`bitcoin:${d.address}?label=${encodeURIComponent(ledger.name)}`);
+  drawWithdrawals();
 }
 function drawBalances() {
   if (!ledger) { $('#balances').textContent = 'ledger…'; return; }
@@ -121,12 +123,27 @@ $('#bp-go').addEventListener('click', async () => {
   if (!address.decodeAddress(to)) return bpStatus('⚠ that is not a valid address');
   if (!(amount >= T.MIN_PAY)) return bpStatus(`⚠ a withdrawal is at least ${T.MIN_PAY} sats`);
   if (amount > T.balance(ledger, account.did)) return bpStatus('⚠ more than your balance');
+  const waiting = ledger ? withdrawals.filter((w) => w.account === account.did && S.withdrawalStatus(ledger, w.id).state === 'waiting') : [];
+  if (!$('#bp-go').dataset.armed && waiting.length) { $('#bp-go').dataset.armed = '1'; $('#bp-go').textContent = `CONFIRM: another ${fmt(amount)} sats?`; bpStatus(`⏳ a withdrawal of <b>${fmt(waiting[0].amount)} sats</b> is already waiting since ${when(waiting[0].at)}: the operator pays it on its next scan. Click again to ask for another ${fmt(amount)} on top, or edit to cancel.`); return; }
   if (!$('#bp-go').dataset.armed) { $('#bp-go').dataset.armed = '1'; $('#bp-go').textContent = `CONFIRM: withdraw ${fmt(amount)} sats?`; bpStatus(`this asks the operator to send <b>${fmt(amount)} sats</b> (less the miner fee) to<br>${esc(to)}<br>click again to confirm, or edit to cancel`); return; }
   disarm(); $('#bp-go').disabled = true;
-  try { const { ev, n } = await publishRequest(account.sign, { op: 'withdraw', amount, to }); bpStatus(`✅ withdrawal request ${esc(ev.id.slice(0, 16))}… published to ${n} relay(s); the operator pays it out by hand and the ledger then shows the debit`); }
-  catch (err) { bpStatus('⚠ ' + esc(err.message)); }
+  try {
+    const { ev, n } = await publishRequest(account.sign, { op: 'withdraw', amount, to });
+    withdrawals.push({ id: ev.tags.find((t) => t[0] === 'id')[1], account: account.did, amount, to, at: ev.created_at }); saveWithdrawals(); drawWithdrawals();
+    bpStatus(`✅ withdrawal request published to ${n} relay(s). It is paid when the operator next scans the ledger; its state is listed below and updates as the ledger does.`);
+  } catch (err) { bpStatus('⚠ ' + esc(err.message)); }
   $('#bp-go').disabled = false;
 });
+// the withdrawals asked for here, each with its state on the ledger: waiting for the operator, or paid with the txid
+let withdrawals = []; const wdKey = () => 'sats:wd:' + LEDGER_HASH;
+try { withdrawals = JSON.parse(LS.get(wdKey()) || '[]'); } catch { withdrawals = []; }
+const saveWithdrawals = () => LS.set(wdKey(), JSON.stringify(withdrawals));
+const when = (t) => new Date(t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+function drawWithdrawals() {
+  const mine = account ? withdrawals.filter((w) => w.account === account.did) : [];
+  $('#bp-list').innerHTML = mine.length ? mine.slice().reverse().map((w) => { const st = ledger ? S.withdrawalStatus(ledger, w.id) : { state: 'waiting' };
+    return `<div>${fmt(w.amount)} sat → <span class="mono">${esc(short(w.to))}</span> · ${st.state === 'paid' ? `✅ paid <a href="${EXPLORER}/tx/${esc(st.txid)}" target="_blank" rel="noopener noreferrer">${esc(st.txid.slice(0, 12))}…</a>` : `⏳ waiting for the operator since ${when(w.at)}`}</div>`; }).join('') : '';
+}
 
 // ---- the table (forked from play/cash.html)
 const GLYPH = { c: '♣', d: '♦', h: '♥', s: '♠' };

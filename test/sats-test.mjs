@@ -61,6 +61,9 @@ t('at 100/200 the folded small blind owes 100 sat, and the seat needs 20,000 to 
 const q = [{ id: 'q1', from: hero, to: bot, amount: 10, created_at: 3, published: false, event: ev }, { id: 'q2', from: hero, to: bot, amount: 10, created_at: 3, published: true, event: ev }, { id: 'q3', from: hero, to: bot, amount: 10, created_at: 3 }];
 t('a pending hand keeps its published flag through reconcile; the unpublished ones are the retry queue', S.unpublished(q).map((p) => p.id).join() === 'q1' && S.reconcile(T, L, q).pending.filter((p) => p.published).length === 1 && S.reconcile(T, L, q).pending.length === 3);
 
+// a withdrawal is waiting until the ledger shows its payout, then paid with the txid
+const wid = 'ab'.repeat(16); t('a withdrawal request is waiting until the operator pays it, then paid with its txid', S.withdrawalStatus(L, wid).state === 'waiting' && (T.debit(L, { id: wid, account: bot, amount: 1000, to: 'tb1p…', txid: 'cd'.repeat(32) }, 9).applied, S.withdrawalStatus(L, wid).state === 'paid' && S.withdrawalStatus(L, wid).txid === 'cd'.repeat(32)));
+
 // links
 const lk = S.parseLink('#ledger=' + L.hash + '&bot=' + botKey.toUpperCase(), '');
 t('the fragment carries the ledger hash and the bot key; a bad value is null', lk.ledger === L.hash && lk.bot === botKey && S.parseLink('#bot=xyz', '?ledger=' + L.hash).bot === null && S.parseLink('', '?ledger=' + L.hash).ledger === L.hash);
