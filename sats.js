@@ -199,7 +199,8 @@ function heroTurn(L) {
   return new Promise((resolve) => {
     const bar = $('#actions'); bar.innerHTML = ''; bar.classList.toggle('pos-btn', h.button === HERO); bar.classList.toggle('pos-bb', h.button !== HERO);
     const mk = (id, label, a) => { const b = document.createElement('button'); b.id = id; b.textContent = label; b.addEventListener('click', () => { bar.innerHTML = ''; keyTargets = null; resolve(a); }); bar.appendChild(b); return b; };
-    if (L.callAmount > 0) mk('b-fold', 'FOLD', { seat: HERO, action: 'fold' }); // nothing to fold to when checking is free
+    // facing nothing, FOLD stays in its place but greyed out (folding to nothing is legal and always wrong); its key then checks
+    const fold = mk('b-fold', 'FOLD', { seat: HERO, action: 'fold' }); if (L.callAmount === 0) { fold.disabled = true; fold.title = 'nothing to fold to: checking is free'; }
     mk('b-call', L.callAmount === 0 ? 'CHECK' : 'CALL ' + L.callAmount, { seat: HERO, action: L.callAmount === 0 ? 'check' : 'call' });
     if (L.actions.includes('bet') || L.actions.includes('raise')) mk('b-raise', (L.actions.includes('bet') ? 'BET ' : 'RAISE TO ') + L.minRaiseTo, { seat: HERO, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: L.minRaiseTo });
     keyTargets = ['b-fold', 'b-call', 'b-raise'];
@@ -209,7 +210,8 @@ document.addEventListener('keydown', (e) => {
   if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if (!keyTargets) { if ((e.key === '1' || e.key === 'Enter') && $('#b-next')) $('#b-next').click(); return; }
   const idx = { 1: 0, f: 0, 2: 1, c: 1, 3: 2, r: 2 }[e.key];
-  if (idx != null) document.getElementById(keyTargets[idx])?.click();
+  if (idx == null) return; const el = document.getElementById(keyTargets[idx]);
+  if (el?.disabled) document.getElementById('b-call')?.click(); else el?.click(); // 1/f on a greyed FOLD is a check
 });
 
 // ---- the strategy (the citizen's brain from the main table); without it the bot calls
