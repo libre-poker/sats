@@ -285,8 +285,11 @@ async function playHand() {
   const delta = h.seats[HERO].stack - st.buyin;
   $('#pot').classList.add('winline'); $('#pot').textContent = delta > 0 ? `You win ${delta} sats` : delta < 0 ? `Bot wins ${-delta} sats` : 'Split';
   seats.forEach((s2) => { s2.said.textContent = ''; });
-  await settle(st); drawLast(st, r, delta);
-  await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); if (autoDeal) resolve(); });
+  // a fold deals the next hand at once; a showdown holds for the golden five to be seen; a click, Enter or 1 skips the hold.
+  // the settlement is signed during the hold, not after it
+  const settled = settle(st).then(() => drawLast(st, r, delta));
+  await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); if (autoDeal) { if (r.showdown) setTimeout(resolve, SHOWDOWN_HOLD); else resolve(); } });
+  await settled;
   $('#actions').innerHTML = ''; $('#pot').classList.remove('winline');
 }
 
@@ -295,7 +298,8 @@ let stakes = S.stakesOf(LS.get('sats:bb'));
 { const sel = $('#stakes'); for (const st of S.STAKES) { const o = document.createElement('option'); o.value = st.bb; o.textContent = `${st.label} sats`; sel.appendChild(o); } sel.value = stakes.bb;
   sel.addEventListener('change', () => { stakes = S.stakesOf(sel.value); sel.value = stakes.bb; LS.set('sats:bb', stakes.bb); caption(`stakes ${stakes.label} from the next hand (buy-in ${fmt(stakes.buyin)} sats)`); }); }
 
-// ---- auto-deal: the next hand as soon as one is settled, or only on NEXT HAND (Enter or 1)
+// ---- auto-deal: the next hand as soon as one is settled (after a hold at showdown), or only on NEXT HAND (Enter or 1)
+const SHOWDOWN_HOLD = 2500;
 let autoDeal = LS.get('sats:auto') !== '0';
 const drawAuto = () => { $('#b-auto').textContent = autoDeal ? '⏭ auto deal' : '⏸ next by hand'; $('#b-auto').classList.toggle('on', autoDeal); };
 $('#b-auto').addEventListener('click', () => { autoDeal = !autoDeal; LS.set('sats:auto', autoDeal ? '1' : '0'); drawAuto(); audio(); }); drawAuto();
