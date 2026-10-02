@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Libre Poker · sats</title>
+<meta name="description" content="Heads-up limit hold'em for test sats (txbt4): every hand settles as a signed transfer on a Web Ledgers teller; deposit from any wallet, withdraw to your own. A playground: nothing here touches the main table.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net/gh/bitcoin-desktop/schema@b8cbf6337c7450fe14ddc5bce00c7280059aab5d/ https://cdn.jsdelivr.net/gh/sidestr/spec@e8deb63161c7459ed39c01d2ca9fda3d860b65b6/ https://cdn.jsdelivr.net/gh/solidpayorg/teller@7c00ceac4dc37e0526eccd5ae62e1680ac88ec2a/ https://cdn.jsdelivr.net/gh/libre-poker/play@3f226bb297293cebba6e201cdcc493f4634eec95/; connect-src 'self' https://cdn.jsdelivr.net https://mempool.guide https://librepoker.org wss:; img-src 'self' data: https://librepoker.org; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+<link rel="icon" type="image/svg+xml" href="https://librepoker.org/favicon.svg">
+<!-- SKIN: forked verbatim from play/cash.html (libre-poker/play@3f226bb): duplication in exchange for zero blast radius on the main table. -->
+<style>
+:root{
+  --room:#241c15; --room2:#33291f;
+  --felt:#2c6e57; --felt2:#1f5240; --felt3:#17402f;
+  --rail:#6e4522; --railhi:#a4713f; --raillo:#4a2d14;
+  --brass:#c9a45c; --ink:#f2ede4; --ink-soft:#b8ac9a; --ink-mut:#8d8272;
+  --card:#fdfbf5; --red:#c33; --black:#20242c;
+  --gold:#e9c15c; --navy:#3d6ea5; --green:#3f7d4e; --danger:#d66;
+  --line:#ffffff22;
+  --cw:clamp(46px,5vw,62px); --ch:calc(var(--cw)*1.42);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  background:radial-gradient(ellipse at 50% 30%, var(--room2) 0%, var(--room) 55%, #150f09 100%);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;user-select:none;
+}
+button{cursor:pointer}
+
+/* ---- top bar */
+#top{
+  display:flex;align-items:center;gap:6px;padding:8px 16px;
+  border-bottom:1px solid #00000055;flex:none;flex-wrap:wrap;
+}
+#top .word{font-weight:800;letter-spacing:.06em;font-size:17px;text-decoration:none;color:var(--ink)}
+#top .word b{color:var(--gold)}
+#top .meta{font-size:12.5px;color:var(--ink-mut);font-weight:600;margin-left:10px}
+#top .spacer{flex:1}
+#top .div{width:1px;height:20px;background:#ffffff1e;margin:0 8px}
+.chip{
+  background:#00000033;border:1px solid #ffffff22;color:var(--ink);
+  border-radius:8px;height:30px;display:inline-flex;align-items:center;gap:6px;
+  padding:0 11px;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;
+}
+.chip:hover{background:#00000055}
+.chip.on{border-color:var(--gold);color:var(--gold)}
+.chip.leak-ok{color:#8fd0a0} .chip.leak-bad{color:var(--danger)}
+
+/* ---- the table */
+#stage{flex:1;display:flex;align-items:center;justify-content:center;padding:8px;min-height:0}
+#tablewrap{position:relative;width:min(74vw,940px);height:min(62vh,450px);min-height:380px}
+#table{
+  position:absolute;inset:0;
+  border-radius:50% / 48%;
+  background:
+    radial-gradient(ellipse 62% 55% at 50% 42%, #35836a 0%, var(--felt) 45%, var(--felt2) 78%, var(--felt3) 100%);
+  border:16px solid transparent;
+  background-clip:padding-box;
+  box-shadow:
+    inset 0 12px 34px rgba(0,0,0,.45),
+    inset 0 -16px 44px rgba(0,0,0,.38);
+}
+#tablewrap::before{
+  content:'';position:absolute;inset:-4px;border-radius:50% / 48%;
+  background:linear-gradient(180deg, #9b6b3a 0%, #7a5230 38%, #5c3a1e 72%, #3a2412 100%);
+  box-shadow:
+    inset 0 3px 4px rgba(255,255,255,.35),
+    inset 0 -6px 12px rgba(0,0,0,.65),
+    0 26px 60px rgba(0,0,0,.65),
+    0 6px 16px rgba(0,0,0,.5);
+}
+#table::after{
+  content:'LIBRE POKER';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  font-size:clamp(26px,3vw,42px);letter-spacing:.5em;color:#ffffff0d;font-weight:800;
+  pointer-events:none;white-space:nowrap;transition:color .4s;
+}
+#table.boardout::after{color:#ffffff05}
+
+/* ---- seats */
+.seat{
+  position:absolute;left:50%;transform:translateX(-50%);
+  width:clamp(200px,25vw,258px);
+  background:linear-gradient(180deg, rgba(10,26,20,.92), rgba(6,16,12,.96));
+  border:1px solid rgba(212,175,105,.30);border-radius:26px;
+  padding:7px 14px 9px;color:var(--ink);
+  box-shadow:0 8px 18px rgba(0,0,0,.45);
+  transition:border-color .2s, box-shadow .2s, opacity .3s;
+}
+#seat-1{top:-24px} #seat-0{bottom:-24px}
+.seat.folded{opacity:.55;filter:saturate(.6)}
+.fcards{
+  position:absolute;left:50%;transform:translateX(-50%);
+  display:flex;gap:6px;justify-content:center;
+}
+#cards-1{top:34px;z-index:4}
+#cards-0{bottom:26px;z-index:4}
+.seat{z-index:5}
+#cards-0 .card{width:calc(var(--cw)*1.16);height:calc(var(--ch)*1.16)}
+#cards-0 .card .cr{font-size:calc(var(--cw)*1.16*.34)}
+#fx{position:absolute;inset:0;pointer-events:none;z-index:40}
+#fx .flych{position:absolute;transition:transform .42s cubic-bezier(.45,0,.35,1), opacity .42s}
+.seat.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold), 0 0 18px rgba(233,193,92,.45), 0 8px 18px rgba(0,0,0,.45)}
+.seat.winner{
+    border-color:#ffd97a;
+    background:linear-gradient(180deg, rgba(46,38,14,.94), rgba(24,19,8,.96));
+    box-shadow:0 0 0 2px #ffd97a, 0 0 34px rgba(255,217,122,.6), 0 8px 18px rgba(0,0,0,.45);
+  }
+.seat .who{display:flex;align-items:center;gap:9px}
+.seat .idc{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0}
+.seat .stkc{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:0}
+.seat .av{
+  width:30px;height:30px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 35% 30%, #3c5a4a, #1c2e24);
+  border:1px solid rgba(212,175,105,.4);
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+}
+.seat .nm{font-size:12px;font-weight:600;color:var(--ink-soft);white-space:nowrap}
+.seat .pos{
+  font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#0e1a12;
+  background:var(--brass);border-radius:6px;padding:1px 5px;
+}
+.seat .stk{font-size:16px;color:var(--gold);font-weight:800;font-variant-numeric:tabular-nums}
+.seat .bbline{font-size:10.5px;color:var(--ink-mut)}
+.seat .said{
+  position:absolute;left:50%;transform:translateX(-50%);bottom:-19px;z-index:6;
+}
+#seat-1 .said{bottom:auto;top:-13px}
+#seat-0 .said, #seat-1 .said{
+  font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  background:#000000cc;border:1px solid #ffffff2a;border-radius:10px;
+  padding:2px 11px;white-space:nowrap;min-height:0;
+}
+.seat .said:empty{display:none}
+.seat .tbar{
+  position:absolute;left:10%;right:10%;bottom:3px;height:3px;border-radius:2px;
+  background:#00000040;overflow:hidden;display:none;
+}
+.seat.active .tbar{display:block}
+.seat .tbar i{display:block;height:100%;width:100%;background:var(--gold);border-radius:2px;transition:width .3s linear}
+.seat .tbar i.drain{transition:width 30s linear;width:0}
+.seat .dbtn{
+  position:absolute;right:-13px;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(180deg,#fff,#d8d2c2);color:#222;
+  border:2px solid var(--brass);
+  font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 5px rgba(0,0,0,.55);
+}
+
+/* ---- bets as chip stacks */
+.bet{
+  position:absolute;left:50%;transform:translateX(-50%);
+  display:none;align-items:flex-end;gap:7px;
+  font-size:13px;font-weight:800;color:var(--ink);
+  background:#00000052;padding:5px 13px 5px 9px;border-radius:16px;font-size:14px;
+  font-variant-numeric:tabular-nums;border:1px solid #ffffff12;
+}
+.bet.show{display:inline-flex}
+.cstack{display:flex;align-items:flex-end;gap:3px}
+.cstack .col{position:relative;width:20px;height:26px}
+.cstack .col i{
+  position:absolute;left:0;width:20px;height:20px;border-radius:50%;
+  border:2px dashed #ffffffc8;box-shadow:0 1.5px 3px #000c;
+}
+.cstack .col i:nth-child(1){bottom:0}
+.cstack .col i:nth-child(2){bottom:5px}
+.cstack .col i:nth-child(3){bottom:10px}
+.cstack .col i:nth-child(4){bottom:15px}
+.cstack .d5 i{background:radial-gradient(circle at 35% 32%, #d96a6a, #8f2b2b)}
+.cstack .d25 i{background:radial-gradient(circle at 35% 32%, #63b07a, #2c6a42)}
+.cstack .d100 i{background:radial-gradient(circle at 35% 32%, #565656, #101010)}
+.cstack .d500 i{background:radial-gradient(circle at 35% 32%, #9a6bc9, #55307f)}
+#bet-1{top:100px;left:calc(50% + 128px)}
+#bet-0{bottom:112px;left:calc(50% - 138px)}
+
+/* ---- cards */
+.card{
+  width:var(--cw);height:var(--ch);border-radius:8px;background:var(--card);
+  color:var(--black);position:relative;
+  box-shadow:0 3px 8px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.3);
+  font-weight:800;
+}
+.card.red{color:var(--red)}
+body.fourc .card.s-d{color:#2e6fd0}
+body.fourc .card.s-c{color:#2c8a52}
+.card .cr{
+  position:absolute;top:6%;left:9%;line-height:.95;text-align:center;
+  font-size:calc(var(--cw)*.34);letter-spacing:-.05em;
+}
+.card .cr b{display:block;font-size:.8em;font-weight:800}
+.card .cp{
+  position:absolute;inset:12% 0 0 0;display:grid;place-items:center;
+  font-size:calc(var(--cw)*.52);line-height:1;
+}
+.card.back{
+  background:
+    repeating-linear-gradient(45deg,#ffffff22 0 3px,transparent 3px 8px),
+    radial-gradient(circle at 50% 45%, #24596a, #12303a);
+  border:3px solid #f4efe2;
+  box-shadow:inset 0 0 0 2px rgba(201,162,75,.55), 0 3px 8px rgba(0,0,0,.35);
+}
+.card.dead{opacity:.7;filter:saturate(.85)}
+.card.win{box-shadow:0 0 0 2px var(--gold), 0 0 16px rgba(233,193,92,.5)}
+@keyframes cardin{from{transform:translateY(-14px) rotate(-4deg);opacity:0}to{transform:none;opacity:1}}
+.card.flipin{animation:cardin .28s ease}
+
+/* ---- center */
+#mid{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:9px;width:100%;
+}
+#potrow{display:flex;align-items:flex-end;gap:10px;min-height:36px}
+#potchips{display:flex;align-items:flex-end}
+#pot{
+  display:inline-flex;align-items:center;gap:8px;
+  font-size:14px;color:var(--gold);font-weight:800;min-height:24px;
+  background:#00000048;border-radius:20px;padding:4px 16px;
+  font-variant-numeric:tabular-nums;border:1px solid #ffffff10;
+}
+#pot.winline{transform:scale(1.2);border-color:rgba(255,217,122,.65);box-shadow:0 0 22px rgba(233,193,92,.3);background:#00000070}
+#pot{transition:transform .15s}
+#pot:empty{visibility:hidden}
+#board{display:flex;gap:clamp(6px,.7vw,9px);min-height:calc(var(--ch) + 2px)}
+#verdict{min-height:28px;display:flex;gap:10px;justify-content:center;align-items:center}
+#verdict .vtag{
+  font-size:13px;font-weight:800;background:#000000aa;border-radius:12px;
+  padding:3px 14px;text-shadow:0 1px 3px #000;
+}
+#verdict .vtag.vw{color:var(--gold);border:1px solid rgba(233,193,92,.5)}
+#verdict .vtag.vl{color:var(--ink-mut)}
+
+/* ---- action bar */
+#bottom{
+  flex:none;padding:6px 14px calc(14px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg, transparent, rgba(0,0,0,.4) 40%, rgba(0,0,0,.6));
+}
+#caption{
+  text-align:center;font-size:14px;font-weight:700;color:var(--gold);
+  min-height:44px;padding:2px 12px;text-shadow:0 1px 3px #000;
+  display:flex;align-items:center;justify-content:center;
+}
+#caption a{color:#5fc7d6}
+#actions{display:flex;gap:10px;justify-content:center;align-items:center;min-height:58px;
+  border-top:3px solid transparent;border-radius:6px;transition:background .12s,border-color .12s}
+#actions.pos-btn{background:rgba(212,175,55,.13);border-top-color:var(--gold)}
+#actions.pos-bb{background:rgba(90,140,220,.13);border-top-color:#5a8cdc}
+#actions button{
+  border:none;border-radius:10px;height:52px;min-width:150px;padding:0 22px;
+  font-size:15px;font-weight:800;color:#fff;letter-spacing:.03em;position:relative;
+  display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 3px 8px rgba(0,0,0,.35);
+}
+#actions button:disabled{opacity:.4;cursor:default}
+#b-fold{background:linear-gradient(180deg,#9c574a,#7c4237)}
+#b-call{background:linear-gradient(180deg,#3f8158,#2b6142)}
+#b-raise{background:linear-gradient(180deg,#d9b45a,#a8842e)}
+#b-next{background:linear-gradient(180deg,#3f8158,#2b6142);min-width:200px}
+#actions .sub{font-size:11px;font-weight:600;opacity:.55;font-variant-numeric:tabular-nums}
+#actions .sub.hot{opacity:1;font-weight:800}
+#actions .qbtn{
+  background:#00000048;border:1px solid #ffffff26;color:var(--ink);
+  min-width:0;width:40px;height:40px;border-radius:50%;padding:0;font-size:16px;
+  margin-right:16px;box-shadow:none;
+}
+#actions .qbtn.on{background:var(--gold);color:#241d18;border-color:var(--gold)}
+
+/* ---- activity log drawer */
+#logdrawer{
+  position:fixed;top:47px;right:0;bottom:0;width:min(320px,80vw);z-index:15;
+  background:linear-gradient(180deg,#241d16f2,#1a140df6);
+  border-left:1px solid #ffffff1e;transform:translateX(100%);
+  transition:transform .25s ease;display:flex;flex-direction:column;
+}
+#logdrawer.open{transform:none}
+#logdrawer .lh{
+  font-size:11px;font-weight:800;letter-spacing:.18em;color:var(--ink-mut);
+  padding:12px 16px 8px;border-bottom:1px solid #ffffff14;
+}
+#logbody{
+  flex:1;overflow-y:auto;padding:10px 16px;font-size:12.5px;line-height:1.75;
+  scrollbar-width:thin;font-variant-numeric:tabular-nums;
+}
+#logbody .lw{color:#8fd0a0;font-weight:700}
+#logbody .lh2{color:var(--gold);font-weight:800;margin-top:6px}
+#logbody .lm{color:var(--ink-mut)}
+
+/* ---- modals */
+.wrap{
+  position:fixed;inset:0;background:#000000aa;display:none;
+  align-items:center;justify-content:center;padding:18px;z-index:20;
+}
+.wrap.open{display:flex}
+.modal{
+  user-select:text;
+  background:linear-gradient(180deg,#3a302a,#2f2823);border:1px solid #ffffff22;
+  border-radius:14px;max-width:680px;width:100%;max-height:88vh;overflow:auto;
+  padding:24px 28px;position:relative;box-shadow:0 20px 80px #000c;color:var(--ink);
+}
+.modal h2{font-size:20px;letter-spacing:.04em;margin-bottom:14px;color:var(--gold)}
+.modal .x{
+  position:absolute;top:12px;right:14px;background:none;border:none;
+  font-size:18px;color:var(--ink-soft);
+}
+.mbtn{font-size:13px;font-weight:700;border:none;border-radius:6px;padding:5px 14px;color:#fff}
+.score-row{cursor:pointer;border-radius:6px;padding:1px 6px}
+.score-row:hover{background:#ffffff10}
+a{color:#5fc7d6}
+@media (max-width:700px){
+  #tablewrap{width:94vw;min-height:340px}
+  #actions button{min-width:110px;height:46px;font-size:13px}
+  .seat{width:min(64vw,230px)}
+}
+#cashbadge{background:#1e4a5a;color:#7fd4e6;border:1px solid rgba(127,212,230,.4);border-radius:10px;
+  padding:3px 10px;font-size:12px;font-weight:700;letter-spacing:.08em}
+#balances{font-variant-numeric:tabular-nums}
+#bankpanel{position:fixed;top:52px;right:14px;width:320px;z-index:60;display:none;
+  background:linear-gradient(180deg, rgba(10,26,20,.97), rgba(6,16,12,.98));
+  border:1px solid rgba(127,212,230,.4);border-radius:16px;padding:14px;
+  box-shadow:0 12px 38px rgba(0,0,0,.6)}
+#bankpanel.open{display:flex;flex-direction:column;gap:9px}
+#bankpanel .bp-title{font-weight:800;color:#7fd4e6;font-size:13px;letter-spacing:.06em}
+#bankpanel input{background:#00000055;border:1px solid #ffffff2a;border-radius:8px;
+  color:var(--ink);padding:8px 10px;font-size:13px;font-family:inherit;width:100%}
+#bankpanel .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;word-break:break-all}
+#bankpanel a{color:#7fd4e6}
+#bankpanel .chip{justify-content:center}
+#signin{display:flex;flex-direction:column;gap:6px}
+</style>
+</head>
+<body>
+
+<div id="top">
+  <a class="word" href="https://librepoker.org/"><b>Libre</b> Poker · <span style="color:#7fd4e6">sats</span></a>
+  <span class="meta" id="tmeta">limit hold'em · 10/20 sats · heads-up</span>
+  <span id="cashbadge" title="txbt4 test sats on a Web Ledgers teller — every hand settles as a signed transfer">⚡ SATS · txbt4 playground</span>
+  <span class="spacer"></span>
+  <span class="meta" id="balances">ledger…</span>
+  <button class="chip" id="b-sound" title="Sound"></button>
+  <button class="chip" id="b-fourc" title="Four-color deck">🎨</button>
+  <button class="chip" id="b-bank" title="Your account: deposit, withdraw, the ledger">🏦 bank</button>
+</div>
+<div id="bankpanel">
+  <div class="bp-title">YOUR ACCOUNT</div>
+  <div id="signin">
+    <button id="b-nip07" class="chip">SIGN IN WITH A NOSTR EXTENSION</button>
+    <input id="keyin" placeholder="or a secret key (64 hex), kept in this browser" spellcheck="false" autocomplete="off">
+    <div style="display:flex;gap:6px"><button id="b-keyuse" class="chip" style="flex:1">USE KEY</button><button id="b-keynew" class="chip" style="flex:1">MAKE ONE</button></div>
+    <div id="si-status" style="font-size:11.5px;color:var(--ink-soft);line-height:1.55">Test coins only (txbt4, no value). A key made here is kept unencrypted in this browser: fine for test sats and nothing else.</div>
+  </div>
+  <div id="acct" hidden>
+    <div class="mono" id="adid"></div>
+    <div style="font-size:11.5px;color:var(--ink-soft)">balance <b id="abal" style="color:var(--gold)">…</b> <span id="apending"></span> · <a id="a-signout" href="#">sign out</a></div>
+    <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
+    <div class="bp-title">DEPOSIT — any wallet → your ledger</div>
+    <div class="mono" id="aaddr" style="cursor:pointer" title="click to copy">…</div>
+    <div style="font-size:11.5px;color:var(--ink-soft);line-height:1.55"><a id="apay" href="#" target="_blank" rel="noopener noreferrer">Pay with Reef…</a> · the operator credits what lands here after the ledger's confirmations. <a id="a-join" href="#">Join</a> so the operator watches this address.</div>
+    <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
+    <div class="bp-title">WITHDRAW — ledger sats → your wallet</div>
+    <input id="bp-addr" placeholder="your txbt4 address (tb1p…)" spellcheck="false" autocomplete="off">
+    <input id="bp-amt" type="number" min="546" step="100" value="5000" title="amount in sats">
+    <button id="bp-go">WITHDRAW</button>
+    <div id="bp-status">You sign a withdrawal request; the operator pays it out from the deposits and the ledger then shows the debit.</div>
+  </div>
+  <div style="height:1px;background:#ffffff22;margin:3px 0"></div>
+  <div id="linfo" style="font-size:11.5px;color:var(--ink-mut);line-height:1.55">no ledger</div>
+</div>
+
+<div id="stage">
+  <div id="tablewrap">
+  <div id="table"></div>
+    <div class="seat" id="seat-1">
+      <div class="who"><span class="av">🤖</span><span class="idc"><span class="nm"></span><span class="pos"></span></span><span class="stkc"><span class="stk"></span><span class="bbline"></span></span></div>
+      <div class="said"></div>
+      <div class="tbar"><i></i></div>
+    </div>
+    <div class="fcards" id="cards-1"></div>
+    <div class="bet" id="bet-1"><span class="cstack"></span><span class="amt"></span></div>
+    <div class="bet" id="bet-0"><span class="cstack"></span><span class="amt"></span></div>
+    <div id="mid">
+      <div id="potrow"><span id="potchips"></span><div id="pot"></div></div>
+      <div id="board"></div>
+      <div id="verdict"></div>
+    </div>
+    <div class="fcards" id="cards-0"></div>
+    <div class="seat" id="seat-0">
+      <div class="who"><span class="av">👤</span><span class="idc"><span class="nm"></span><span class="pos"></span></span><span class="stkc"><span class="stk"></span><span class="bbline"></span></span></div>
+      <div class="said"></div>
+      <div class="tbar"><i></i></div>
+    </div>
+    <div id="fx"></div>
+  </div>
+</div>
+
+<div id="bottom">
+  <div id="caption"></div>
+  <div id="actions"></div>
+</div>
+<script type="module" src="sats.js"></script>
+</body>
+</html>

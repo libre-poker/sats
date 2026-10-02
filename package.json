@@ -1,0 +1,8 @@
+{
+  "name": "sats",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "description": "Libre Poker for sats: heads-up limit hold'em over a Web Ledgers teller on txbt4 (a playground)",
+  "scripts": { "test": "node test/sats-test.mjs" }
+}
