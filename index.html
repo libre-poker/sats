@@ -242,6 +242,8 @@ body.fourc .card.s-c{color:#2c8a52}
   display:flex;align-items:center;justify-content:center;
 }
 #caption a{color:#5fc7d6}
+#last{text-align:center;font-size:12.5px;font-weight:600;color:var(--ink-soft);min-height:18px;padding:0 12px;text-shadow:0 1px 3px #000}
+#last b{color:var(--gold)} #last .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-mut)}
 #actions{display:flex;gap:10px;justify-content:center;align-items:center;min-height:58px;
   border-top:3px solid transparent;border-radius:6px;transition:background .12s,border-color .12s}
 #actions.pos-btn{background:rgba(212,175,55,.13);border-top-color:var(--gold)}
@@ -397,6 +399,7 @@ select.chip{appearance:auto;font-family:inherit}
 </div>
 
 <div id="bottom">
+  <div id="last" title="The last hand, until the next one settles"></div>
   <div id="caption"></div>
   <div id="actions"></div>
 </div>

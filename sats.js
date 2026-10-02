@@ -220,8 +220,16 @@ async function settle(st) {
   catch (e) { caption('⚠ the transfer was not signed: ' + esc(e.message) + ' — this hand is not on the ledger'); return; }
   const r = T.parseRequest(ev, { verify: verifyNostrEvent, ledgerHash: ledger.hash });
   pending.push({ id: r.id, from: r.account, to: r.to, amount: r.amount, created_at: r.created_at, published: false, event: ev }); reconcile(); sLedger();
-  caption(`⚡ ${s.to === account.did ? '+' : '−'}${fmt(s.amount)} sats signed · you ${fmt(T.balance(ledger, account.did))} · bot ${fmt(T.balance(ledger, BOT_DID))}`);
   publishPending();
+}
+// the last hand, written once it is settled and left until the next one is: who won what, how, and where that leaves you
+function drawLast(st, r, delta) {
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const won = delta > 0 ? `<b>You won ${fmt(delta)}</b>` : delta < 0 ? `<b>Bot won ${fmt(-delta)}</b>` : '<b>Split</b>';
+  let how;
+  if (r.showdown) { const e = r.evals ?? {}; how = e[HERO] && e[BOT] ? `${cap(handName(e[delta >= 0 ? HERO : BOT]))} over ${handName(e[delta >= 0 ? BOT : HERO])}` : 'showdown'; }
+  else how = delta > 0 ? 'bot folded' : 'you folded';
+  $('#last').innerHTML = `hand #${handNo} <span class="mono">${commit8}</span> · ${st.label} · ${won} — ${esc(how)} · you ${fmt(T.balance(ledger, account.did))} · bot ${fmt(T.balance(ledger, BOT_DID))}`;
 }
 let publishing = false;
 async function publishPending() {
@@ -277,7 +285,7 @@ async function playHand() {
   const delta = h.seats[HERO].stack - st.buyin;
   $('#pot').classList.add('winline'); $('#pot').textContent = delta > 0 ? `You win ${delta} sats` : delta < 0 ? `Bot wins ${-delta} sats` : 'Split';
   seats.forEach((s2) => { s2.said.textContent = ''; });
-  await settle(st);
+  await settle(st); drawLast(st, r, delta);
   await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); if (autoDeal) resolve(); });
   $('#actions').innerHTML = ''; $('#pot').classList.remove('winline');
 }
