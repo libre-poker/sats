@@ -4,7 +4,7 @@ Heads-up limit hold'em for test sats: the main table's engine and strategy over 
 
 A playground. Nothing here touches `play/`, the croupier, the bots or the schema; it imports the engine and the teller pinned by commit and adds no protocol of its own.
 
-Live: https://libre-poker.github.io/sats/ — a table needs a link with its ledger and its bot: `#ledger=<hash>&bot=<hex>`.
+Live: https://librepoker.org/sats/ — a table needs a link with its ledger and its bot: `#ledger=<hash>&bot=<hex>`.
 
 ## How it works
 
@@ -23,6 +23,6 @@ What it is, plainly: a demo of the rails. The bot's key sits in the link and in 
 
 ## Running a table
 
-Make a ledger on the [teller page](https://solidpayorg.github.io/teller/) as its operator, make a key for the bot, deposit to the bot's address, Join it and scan. Hand out `https://libre-poker.github.io/sats/#ledger=<hash>&bot=<the bot's key>`. Scan now and then to apply the hands and pay withdrawals.
+Make a ledger on the [teller page](https://solidpayorg.github.io/teller/) as its operator, make a key for the bot, deposit to the bot's address, Join it and scan. Hand out `https://librepoker.org/sats/#ledger=<hash>&bot=<the bot's key>`. Scan now and then to apply the hands and pay withdrawals.
 
 GitHub Pages serves `gh-pages` as it is. AGPL-3.0-or-later.
