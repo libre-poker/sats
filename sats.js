@@ -199,7 +199,7 @@ function heroTurn(L) {
   return new Promise((resolve) => {
     const bar = $('#actions'); bar.innerHTML = ''; bar.classList.toggle('pos-btn', h.button === HERO); bar.classList.toggle('pos-bb', h.button !== HERO);
     const mk = (id, label, a) => { const b = document.createElement('button'); b.id = id; b.textContent = label; b.addEventListener('click', () => { bar.innerHTML = ''; keyTargets = null; resolve(a); }); bar.appendChild(b); return b; };
-    mk('b-fold', 'FOLD', { seat: HERO, action: 'fold' });
+    if (L.callAmount > 0) mk('b-fold', 'FOLD', { seat: HERO, action: 'fold' }); // nothing to fold to when checking is free
     mk('b-call', L.callAmount === 0 ? 'CHECK' : 'CALL ' + L.callAmount, { seat: HERO, action: L.callAmount === 0 ? 'check' : 'call' });
     if (L.actions.includes('bet') || L.actions.includes('raise')) mk('b-raise', (L.actions.includes('bet') ? 'BET ' : 'RAISE TO ') + L.minRaiseTo, { seat: HERO, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: L.minRaiseTo });
     keyTargets = ['b-fold', 'b-call', 'b-raise'];
