@@ -23,6 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---- the link: read once, kept for this tab, cleared from the address bar
 { const lk = S.parseLink(location.hash, location.search); if (lk.ledger) SS.set('sats:ledger', lk.ledger); if (lk.bot) SS.set('sats:bot', lk.bot); if (location.hash) history.replaceState(null, '', location.pathname + location.search); }
 const LEDGER_HASH = SS.get('sats:ledger'), BOT_KEY = SS.get('sats:bot');
+window.addEventListener('hashchange', () => location.reload()); // a link opened over this page: start again from its fragment
 
 // ---- the libraries
 caption('loading the libraries…');
