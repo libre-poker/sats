@@ -50,6 +50,13 @@ t('once published, the hand is dropped from pending and not applied twice', T.ba
 const big = [{ id: 'ff'.repeat(16), from: hero, to: bot, amount: 999999, created_at: 2 }];
 t('a hand that would overdraw the published copy is dropped, never applied', S.reconcile(T, L, big).pending.length === 0 && T.balance(S.reconcile(T, L, big).ledger, hero) === 4990);
 
+// stakes: every amount a unit of the big blind, so a hand at 100/200 owes ten times a hand at 10/20
+const hi = S.stakesOf(200);
+t('stakes: small blind half the big, buy-in 100 big blinds; an unknown size falls back to 10/20', hi.sb === 100 && hi.buyin === 20000 && hi.label === '100/200' && S.stakesOf('7').bb === 20 && S.STAKES.every((s) => Number.isInteger(s.sb)));
+const hb = P.newHand({ seats: [{ name: 'You', stack: hi.buyin }, { name: 'Bot', stack: hi.buyin }], button: 0, sb: hi.sb, bb: hi.bb, seedHex: seed, limit: true }); P.act(hb, { seat: 0, action: 'fold' });
+const sb = S.settlement(hb, { hero, bot }, 0, hi);
+t('at 100/200 the folded small blind owes 100 sat, and the seat needs 20,000 to sit', sb && sb.amount === 100 && sb.from === hero && !S.canSit(T, L, hero, bot, hi).hero && S.canSit(T, L, hero, bot, hi).bot);
+
 // links
 const lk = S.parseLink('#ledger=' + L.hash + '&bot=' + botKey.toUpperCase(), '');
 t('the fragment carries the ledger hash and the bot key; a bad value is null', lk.ledger === L.hash && lk.bot === botKey && S.parseLink('#bot=xyz', '?ledger=' + L.hash).bot === null && S.parseLink('', '?ledger=' + L.hash).ledger === L.hash);

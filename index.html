@@ -327,13 +327,15 @@ a{color:#5fc7d6}
 #bankpanel a{color:#7fd4e6}
 #bankpanel .chip{justify-content:center}
 #signin{display:flex;flex-direction:column;gap:6px}
+select.chip{appearance:auto;font-family:inherit}
 </style>
 </head>
 <body>
 
 <div id="top">
   <a class="word" href="https://librepoker.org/"><b>Libre</b> Poker · <span style="color:#7fd4e6">sats</span></a>
-  <span class="meta" id="tmeta">limit hold'em · 10/20 sats · heads-up</span>
+  <span class="meta" id="tmeta">limit hold'em · heads-up</span>
+  <select id="stakes" class="chip" title="Stakes (small/big blind in sats; buy-in 100 big blinds). Changes from the next hand."></select>
   <span id="cashbadge" title="txbt4 test sats on a Web Ledgers teller — every hand settles as a signed transfer">⚡ SATS · txbt4 playground</span>
   <span class="spacer"></span>
   <span class="meta" id="balances">ledger…</span>

@@ -163,7 +163,7 @@ function render() {
   for (const i of [0, 1]) {
     const d = seats[i];
     d.nm.textContent = i === HERO ? 'You' : 'Bot ' + (BOT_DID ? BOT_DID.slice(10, 18) : '');
-    d.stk.textContent = h.seats[i].stack.toLocaleString(); d.bb.textContent = (h.seats[i].stack / S.BB).toFixed(0) + ' BB';
+    d.stk.textContent = h.seats[i].stack.toLocaleString(); d.bb.textContent = (h.seats[i].stack / h.bb).toFixed(0) + ' BB';
     d.pos.textContent = h.button === i ? 'SB' : 'BB';
     d.root.classList.toggle('glow', h.phase === 'act' && h.toAct === i);
     const bet = $('#bet-' + i); const amt = h.seats[i].streetCommit;
@@ -209,8 +209,8 @@ function botAction(L, cache) {
 }
 
 // ---- settlement: the loser signs a transfer to the winner; applied locally at once, by the operator on its next scan
-async function settle() {
-  const s = S.settlement(h, { hero: account.did, bot: BOT_DID }, HERO);
+async function settle(st) {
+  const s = S.settlement(h, { hero: account.did, bot: BOT_DID }, HERO, st);
   if (!s) { caption('split: nothing moves'); return; }
   const sign = s.from === account.did ? account.sign : (u) => events.signEvent(BOT_KEY, u);
   caption(s.from === account.did ? '⚡ signing the transfer to the bot…' : '⚡ the bot signs its transfer to you…');
@@ -227,8 +227,8 @@ async function waitToSit() {
     if (!ledger) { caption(LEDGER_HASH ? 'waiting for the ledger from the relays…' : '⚠ open this page from a link with #ledger=…&bot=…'); await sleep(2000); continue; }
     if (!BOT_DID) { caption('⚠ no bot key in the link: nothing to play against'); await sleep(5000); continue; }
     if (!account) { caption('sign in at 🏦 bank to play: a Nostr extension or a key kept in this browser'); await sleep(1000); continue; }
-    const can = S.canSit(T, ledger, account.did, BOT_DID);
-    if (!can.hero) { caption(`you need ${fmt(S.BUYIN)} sats on the ledger to sit (you have ${fmt(T.balance(ledger, account.did))}): deposit at 🏦 bank, then Join, and the operator credits it`); await sleep(3000); continue; }
+    const can = S.canSit(T, ledger, account.did, BOT_DID, stakes);
+    if (!can.hero) { caption(`you need ${fmt(stakes.buyin)} sats on the ledger to sit at ${stakes.label} (you have ${fmt(T.balance(ledger, account.did))}): deposit at 🏦 bank, then Join, and the operator credits it — or choose smaller stakes at the top`); await sleep(3000); continue; }
     if (!can.bot) { caption(`the bot is out of sats (${fmt(T.balance(ledger, BOT_DID))}); its operator must top it up`); await sleep(5000); continue; }
     return;
   }
@@ -237,10 +237,10 @@ async function playHand() {
   await waitToSit();
   handNo++;
   const seed = await sha256hex(`sats|${Date.now()}|${handNo}|${Math.random()}`); commit8 = (await sha256hex(seed)).slice(0, 8);
-  h = newHand({ seats: [{ name: 'You', stack: S.BUYIN }, { name: 'Bot', stack: S.BUYIN }], button: handNo % 2, sb: S.SB, bb: S.BB, seedHex: seed, limit: true });
+  const st = stakes; h = newHand({ seats: [{ name: 'You', stack: st.buyin }, { name: 'Bot', stack: st.buyin }], button: handNo % 2, sb: st.sb, bb: st.bb, seedHex: seed, limit: true });
   const cache = {}; shownBoard = 0;
   $('#verdict').textContent = ''; $('#board').innerHTML = '';
-  $('#tmeta').textContent = `limit hold'em · ${S.SB}/${S.BB} sats · hand #${handNo} · ${commit8}`;
+  $('#tmeta').textContent = `limit hold'em · ${st.label} sats · hand #${handNo} · ${commit8}`;
   dealCards(); render(); sCard(); sPos(h.button === HERO); caption('');
   let lastStreet = 0, guard = 0;
   while (h.phase === 'act' && guard++ < 200) {
@@ -261,13 +261,18 @@ async function playHand() {
     const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
     $('#verdict').innerHTML = Object.entries(r.evals ?? {}).map(([i, e]) => `<span class="vtag ${winSeats.has(+i) ? 'vw' : 'vl'}">${+i === HERO ? 'You' : 'Bot'}: ${cap(handName(e))}</span>`).join('');
   }
-  const delta = h.seats[HERO].stack - S.BUYIN;
+  const delta = h.seats[HERO].stack - st.buyin;
   $('#pot').classList.add('winline'); $('#pot').textContent = delta > 0 ? `You win ${delta} sats` : delta < 0 ? `Bot wins ${-delta} sats` : 'Split';
   seats.forEach((s2) => { s2.said.textContent = ''; });
-  await settle();
+  await settle(st);
   await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); setTimeout(resolve, 4000); });
   $('#actions').innerHTML = ''; $('#pot').classList.remove('winline');
 }
+
+// ---- the stakes: chosen at the top, remembered here, applied from the next hand
+let stakes = S.stakesOf(LS.get('sats:bb'));
+{ const sel = $('#stakes'); for (const st of S.STAKES) { const o = document.createElement('option'); o.value = st.bb; o.textContent = `${st.label} sats`; sel.appendChild(o); } sel.value = stakes.bb;
+  sel.addEventListener('change', () => { stakes = S.stakesOf(sel.value); sel.value = stakes.bb; LS.set('sats:bb', stakes.bb); caption(`stakes ${stakes.label} from the next hand (buy-in ${fmt(stakes.buyin)} sats)`); }); }
 
 // ---- settings, as on the main table
 let fourColor = LS.get('lp.fourc') !== '0';
