@@ -265,7 +265,7 @@ async function playHand() {
   $('#pot').classList.add('winline'); $('#pot').textContent = delta > 0 ? `You win ${delta} sats` : delta < 0 ? `Bot wins ${-delta} sats` : 'Split';
   seats.forEach((s2) => { s2.said.textContent = ''; });
   await settle(st);
-  await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); setTimeout(resolve, 4000); });
+  await new Promise((resolve) => { const bar = $('#actions'); const bn = document.createElement('button'); bn.id = 'b-next'; bn.textContent = 'NEXT HAND'; bn.addEventListener('click', resolve); bar.appendChild(bn); if (autoDeal) setTimeout(resolve, 4000); });
   $('#actions').innerHTML = ''; $('#pot').classList.remove('winline');
 }
 
@@ -273,6 +273,11 @@ async function playHand() {
 let stakes = S.stakesOf(LS.get('sats:bb'));
 { const sel = $('#stakes'); for (const st of S.STAKES) { const o = document.createElement('option'); o.value = st.bb; o.textContent = `${st.label} sats`; sel.appendChild(o); } sel.value = stakes.bb;
   sel.addEventListener('change', () => { stakes = S.stakesOf(sel.value); sel.value = stakes.bb; LS.set('sats:bb', stakes.bb); caption(`stakes ${stakes.label} from the next hand (buy-in ${fmt(stakes.buyin)} sats)`); }); }
+
+// ---- auto-deal: the next hand four seconds after a hand ends, or only on NEXT HAND (Enter or 1)
+let autoDeal = LS.get('sats:auto') !== '0';
+const drawAuto = () => { $('#b-auto').textContent = autoDeal ? '⏭ auto deal' : '⏸ next by hand'; $('#b-auto').classList.toggle('on', autoDeal); };
+$('#b-auto').addEventListener('click', () => { autoDeal = !autoDeal; LS.set('sats:auto', autoDeal ? '1' : '0'); drawAuto(); audio(); }); drawAuto();
 
 // ---- settings, as on the main table
 let fourColor = LS.get('lp.fourc') !== '0';
