@@ -202,7 +202,9 @@ function heroTurn(L) {
     // facing nothing, FOLD stays in its place but greyed out (folding to nothing is legal and always wrong); its key then checks
     const fold = mk('b-fold', 'FOLD', { seat: HERO, action: 'fold' }); if (L.callAmount === 0) { fold.disabled = true; fold.title = 'nothing to fold to: checking is free'; }
     mk('b-call', L.callAmount === 0 ? 'CHECK' : 'CALL ' + L.callAmount, { seat: HERO, action: L.callAmount === 0 ? 'check' : 'call' });
+    // the same for a raise: when the street's raises are capped the button stays, greyed out, and its key calls
     if (L.actions.includes('bet') || L.actions.includes('raise')) mk('b-raise', (L.actions.includes('bet') ? 'BET ' : 'RAISE TO ') + L.minRaiseTo, { seat: HERO, action: L.actions.includes('bet') ? 'bet' : 'raise', amount: L.minRaiseTo });
+    else { const r = mk('b-raise', 'RAISE', null); r.disabled = true; r.title = 'raises are capped on this street'; }
     keyTargets = ['b-fold', 'b-call', 'b-raise'];
   });
 }
